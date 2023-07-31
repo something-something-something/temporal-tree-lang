@@ -34,7 +34,7 @@ export const OperationTypes = {
 	LESS_THAN_OR_EQUAL: '<=',
 } as const;
 
-interface BaseNode {
+export interface BaseNode {
 	type: (typeof ProgramNodeTypes)[keyof typeof ProgramNodeTypes];
 	uuid: string;
 	children: ProgramNode[];
@@ -46,7 +46,7 @@ export interface RootNode extends BaseNode {
 
 export interface InputNode extends BaseNode {
 	type: typeof ProgramNodeTypes.INPUT;
-	valueType: string | number;
+	valueType: 'string' | 'number';
 }
 
 export interface PrintNode extends BaseNode {
@@ -79,7 +79,7 @@ export interface VarGetNode extends BaseNode {
 }
 export interface VarSetNode extends BaseNode {
 	type: typeof ProgramNodeTypes.VAR_SET;
-	varuuids: string[];
+	varuuid: string;
 }
 export interface VarLabelNode extends BaseNode {
 	type: typeof ProgramNodeTypes.VAR_LABEL;

@@ -6,7 +6,6 @@ import {
 	InputNode,
 	PrintNode,
 	ProgramNode,
-	ProgramNodeTypes,
 	RootNode,
 	OperatorNode,
 	IfStatmentNode,
@@ -16,10 +15,24 @@ import {
 	VarSetNode,
 	OperationTypes,
 	ValueNode,
+	ProgramNodeTypes,
 } from '../types';
+import { convertToNum, convertToStr } from './convertToNum';
 import { ProgramStateType, ExecutionArg, StateOfVarables } from './types';
 
-export abstract class BaseNodeRun<T extends NonNullable<ProgramNode>> {
+export type ProgramNodeRun =
+	| OperatorNodeRun
+	| PrintNodeRun
+	| InputNodeRun
+	| ValueNodeRun
+	| VarGetNodeRun
+	| VarLabelNodeRun
+	| VarSetNodeRun
+	| WhileNodeRun
+	| IfNodeRun
+	| RootNodeRun;
+
+class BaseNodeRun<T extends NonNullable<ProgramNode>> {
 	#node: T;
 
 	constructor(node: T) {
@@ -79,29 +92,11 @@ export abstract class BaseNodeRun<T extends NonNullable<ProgramNode>> {
 	}
 }
 
-export function convertToNum(v: string | number) {
-	if (typeof v === 'number') {
-		return v;
-	} else {
-		const num = parseFloat(v);
-		if (!Number.isNaN(num)) {
-			return num;
-		} else {
-			return 0;
-		}
-	}
+export class RootNodeRun extends BaseNodeRun<RootNode> {
+	static nodeType = ProgramNodeTypes.ROOT;
 }
-
-export function convertToStr(v: string | number) {
-	if (typeof v === 'string') {
-		return v;
-	} else {
-		return v.toString(10);
-	}
-}
-
-export class RootNodeRun extends BaseNodeRun<RootNode> {}
 export class InputNodeRun extends BaseNodeRun<InputNode> {
+	static nodeType = ProgramNodeTypes.INPUT;
 	async exec(execArgs: ExecutionArg): Promise<ProgramStateType> {
 		const printStr = execArgs.values.join('\n');
 		//await signal parent
@@ -113,6 +108,8 @@ export class InputNodeRun extends BaseNodeRun<InputNode> {
 }
 
 export class ValueNodeRun extends BaseNodeRun<ValueNode> {
+	static nodeType = ProgramNodeTypes.VALUE;
+
 	async exec(execArgs: ExecutionArg): Promise<ProgramStateType> {
 		if (this.node.valueType === 'string') {
 			return { value: this.node.value, variables: execArgs.variables };
@@ -126,6 +123,8 @@ export class ValueNodeRun extends BaseNodeRun<ValueNode> {
 }
 
 export class PrintNodeRun extends BaseNodeRun<PrintNode> {
+	static nodeType = ProgramNodeTypes.PRINT;
+
 	async exec(execArgs: ExecutionArg): Promise<ProgramStateType> {
 		const printStr = execArgs.values.join('\n');
 
@@ -134,6 +133,7 @@ export class PrintNodeRun extends BaseNodeRun<PrintNode> {
 }
 
 export class OperatorNodeRun extends BaseNodeRun<OperatorNode> {
+	static nodeType = ProgramNodeTypes.OPERATOR;
 	async exec(execArgs: ExecutionArg): Promise<ProgramStateType> {
 		if (execArgs.values.length > 1) {
 			return {
@@ -181,6 +181,8 @@ export class OperatorNodeRun extends BaseNodeRun<OperatorNode> {
 }
 
 export class IfNodeRun extends BaseNodeRun<IfStatmentNode> {
+	static nodeType = ProgramNodeTypes.IF_STATMENT;
+
 	async run(
 		state: ProgramStateType,
 		rootWorkflowId: string | null,
@@ -210,6 +212,8 @@ export class IfNodeRun extends BaseNodeRun<IfStatmentNode> {
 }
 
 export class WhileNodeRun extends BaseNodeRun<WhileStatmentNode> {
+	static nodeType = ProgramNodeTypes.WHILE_STATMENT;
+
 	async run(
 		state: ProgramStateType,
 		rootWorkflowId: string | null,
@@ -243,6 +247,8 @@ export class WhileNodeRun extends BaseNodeRun<WhileStatmentNode> {
 }
 
 export class VarLabelNodeRun extends BaseNodeRun<VarLabelNode> {
+	static nodeType = ProgramNodeTypes.VAR_LABEL;
+
 	async exec(execArgs: ExecutionArg) {
 		const updatedVars = structuredClone(execArgs.variables);
 
@@ -263,6 +269,7 @@ export class VarLabelNodeRun extends BaseNodeRun<VarLabelNode> {
 }
 
 export class VarGetNodeRun extends BaseNodeRun<VarGetNode> {
+	static nodeType = ProgramNodeTypes.VAR_GET;
 	async exec(execArgs: ExecutionArg) {
 		if (Object.hasOwn(execArgs.variables, this.node.varuuid)) {
 			return {
@@ -279,18 +286,17 @@ export class VarGetNodeRun extends BaseNodeRun<VarGetNode> {
 }
 
 export class VarSetNodeRun extends BaseNodeRun<VarSetNode> {
+	static nodeType = ProgramNodeTypes.VAR_SET;
+
 	async exec(execArgs: ExecutionArg) {
 		const modifiedVarables: StateOfVarables = {};
 
-		this.node.varuuids.forEach((vuuid, index) => {
-			if (execArgs.values.length < index) {
-				modifiedVarables[vuuid] = {
-					value: execArgs.values[index],
-					name: '',
-				};
-			}
-		});
-
+		if (execArgs.values.length > 0) {
+			modifiedVarables[this.node.varuuid] = {
+				value: execArgs.values[0],
+				name: '',
+			};
+		}
 		const updatedVars = structuredClone(execArgs.variables);
 
 		for (const [key, value] of Object.entries(modifiedVarables)) {
@@ -299,7 +305,7 @@ export class VarSetNodeRun extends BaseNodeRun<VarSetNode> {
 			} else {
 				updatedVars[key] = {
 					name: '',
-					value: 0,
+					value: value.value,
 				};
 			}
 		}
@@ -308,29 +314,5 @@ export class VarSetNodeRun extends BaseNodeRun<VarSetNode> {
 			variables: updatedVars,
 			value: 0,
 		};
-	}
-}
-
-export function programNodeRunFactory(node: NonNullable<ProgramNode>) {
-	if (node.type === ProgramNodeTypes.ROOT) {
-		return new RootNodeRun(node);
-	} else if (node.type === ProgramNodeTypes.INPUT) {
-		return new InputNodeRun(node);
-	} else if (node.type === ProgramNodeTypes.PRINT) {
-		return new PrintNodeRun(node);
-	} else if (node.type === ProgramNodeTypes.VALUE) {
-		return new ValueNodeRun(node);
-	} else if (node.type === ProgramNodeTypes.OPERATOR) {
-		return new OperatorNodeRun(node);
-	} else if (node.type === ProgramNodeTypes.IF_STATMENT) {
-		return new IfNodeRun(node);
-	} else if (node.type === ProgramNodeTypes.WHILE_STATMENT) {
-		return new WhileNodeRun(node);
-	} else if (node.type === ProgramNodeTypes.VAR_LABEL) {
-		return new VarLabelNodeRun(node);
-	} else if (node.type === ProgramNodeTypes.VAR_GET) {
-		return new VarGetNodeRun(node);
-	} else {
-		return new VarSetNodeRun(node);
 	}
 }

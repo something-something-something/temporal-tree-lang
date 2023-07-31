@@ -10,10 +10,17 @@ import {
 	useState,
 } from 'react';
 import {
+	BaseNode,
+	InputNode,
 	OperationTypes,
+	OperatorNode,
 	ProgramNode,
 	ProgramNodeTypes,
 	RootNode,
+	ValueNode,
+	VarGetNode,
+	VarLabelNode,
+	VarSetNode,
 } from '../../../programNodes/types';
 import editorStyles from './editor.module.css';
 import { useImmerReducer } from 'use-immer';
@@ -22,6 +29,8 @@ import DisableSSR from '../../_clientComponts/DisableSSR';
 const EditorDispatchContext = createContext<
 	Dispatch<ProgramEditorReducerAction>
 >(() => {});
+
+const EditorStateContext = createContext<ProgramNode>(null);
 
 export function Editor() {
 	const [editorState, dispatchEditorState] = useReducer(programEditorReducer, {
@@ -39,17 +48,19 @@ export function Editor() {
 
 	return (
 		<EditorDispatchContext.Provider value={dispatchEditorState}>
-			<div className={editorStyles.editor}>
-				<div className={editorStyles.program}>
-					<ProgramNodeUI node={editorState} />
-					{/* <div style={{ width: '10000px', height: '10000px' }}>blah</div>
+			<EditorStateContext.Provider value={editorState}>
+				<div className={editorStyles.editor}>
+					<div className={editorStyles.program}>
+						<ProgramNodeUI node={editorState} />
+						{/* <div style={{ width: '10000px', height: '10000px' }}>blah</div>
 				program */}
-					<DisableSSR>
-						<pre>{JSON.stringify(editorState, null, '\t')}</pre>
-					</DisableSSR>
+						<DisableSSR>
+							<pre>{JSON.stringify(editorState, null, '\t')}</pre>
+						</DisableSSR>
+					</div>
+					<div>{sideBarItems}</div>
 				</div>
-				<div>{sideBarItems}</div>
-			</div>
+			</EditorStateContext.Provider>
 		</EditorDispatchContext.Provider>
 	);
 }
@@ -142,8 +153,9 @@ function ProgramNodeUI({
 		};
 
 		return (
-			<>
+			<div className={editorStyles.node}>
 				<div
+					className={editorStyles.draggableNode}
 					draggable
 					onDragStart={(ev) => {
 						ev.dataTransfer.setData(
@@ -152,27 +164,256 @@ function ProgramNodeUI({
 						);
 					}}
 				>
-					{JSON.stringify(data)}
-					<div>
-						No ui for {node.type}
-						{node.uuid} {parentUuid}
-						<button
-							type="button"
-							onClick={() => {
-								editorDispatch({
-									type: 'deleteNode',
-									data: {
-										parentUuid: parentUuid ?? '',
-										selfUuid: node.uuid,
-									},
-								});
-							}}
-						>
-							Delete
-						</button>
-					</div>
+					{node.type}
 				</div>
+				{/* {JSON.stringify(data)} */}
+				<div>
+					<NodeConfigControls node={node} />
+
+					<button
+						type="button"
+						onClick={() => {
+							editorDispatch({
+								type: 'deleteNode',
+								data: {
+									parentUuid: parentUuid ?? '',
+									selfUuid: node.uuid,
+								},
+							});
+						}}
+					>
+						Delete
+					</button>
+				</div>
+
 				<div className={editorStyles.nodeIndentChildren}>{childrenNodes}</div>
+			</div>
+		);
+	}
+}
+
+function NodeConfigControls({ node }: { node: ProgramNode }) {
+	const editorDispatch = useContext(EditorDispatchContext);
+
+	const editorState = useContext(EditorStateContext);
+	if (node === null) {
+		return <></>;
+	} else if (node.type === ProgramNodeTypes.INPUT) {
+		return (
+			<>
+				Type of userinput
+				<select
+					value={node.valueType}
+					onChange={(ev) => {
+						const v = ev.target.value;
+						if ('number' === v || 'string' === v) {
+							editorDispatch({
+								type: 'updateSimpleNodeValue',
+								data: {
+									uuid: node.uuid,
+									nodeType: node.type,
+									key: 'valueType',
+									value: v,
+								},
+							});
+						}
+					}}
+				>
+					<option value="number">number</option>
+					<option value="string">string</option>
+				</select>
+			</>
+		);
+	} else if (node.type === ProgramNodeTypes.OPERATOR) {
+		return (
+			<>
+				Type of operator
+				<select
+					value={node.opertation}
+					onChange={(ev) => {
+						const v = ev.target.value;
+						const result = Object.values(OperationTypes).filter((z) => {
+							return z === v;
+						});
+
+						if (result.length > 0) {
+							editorDispatch({
+								type: 'updateSimpleNodeValue',
+								data: {
+									uuid: node.uuid,
+									nodeType: node.type,
+									key: 'opertation',
+									value: result[0],
+								},
+							});
+						}
+					}}
+				>
+					{Object.entries(OperationTypes).map(([key, value]) => {
+						return (
+							<option key={value} value={value}>
+								{value}
+							</option>
+						);
+					})}
+				</select>
+			</>
+		);
+	} else if (node.type === ProgramNodeTypes.VALUE) {
+		return (
+			<>
+				Type of value
+				<select
+					value={node.valueType}
+					onChange={(ev) => {
+						const v = ev.target.value;
+						if ('number' === v || 'string' === v) {
+							editorDispatch({
+								type: 'updateSimpleNodeValue',
+								data: {
+									uuid: node.uuid,
+									nodeType: node.type,
+									key: 'valueType',
+									value: v,
+								},
+							});
+						}
+					}}
+				>
+					<option value="number">number</option>
+					<option value="string">string</option>
+				</select>
+				<input
+					type={node.valueType === 'string' ? 'text' : 'number'}
+					value={node.value}
+					onChange={(ev) => {
+						editorDispatch({
+							type: 'updateSimpleNodeValue',
+							data: {
+								uuid: node.uuid,
+								nodeType: node.type,
+								key: 'value',
+								value: ev.target.value,
+							},
+						});
+					}}
+				/>
+			</>
+		);
+	} else if (node.type === ProgramNodeTypes.VAR_LABEL) {
+		return (
+			<>
+				Name
+				<input
+					type="text"
+					value={node.name}
+					onChange={(ev) => {
+						editorDispatch({
+							type: 'updateSimpleNodeValue',
+							data: {
+								uuid: node.uuid,
+								nodeType: node.type,
+								key: 'name',
+								value: ev.target.value,
+							},
+						});
+					}}
+				/>
+			</>
+		);
+	} else if (node.type === ProgramNodeTypes.VAR_GET) {
+		return (
+			<>
+				Varable
+				<select
+					value={node.varuuid}
+					onChange={(ev) => {
+						ev.target.value;
+
+						editorDispatch({
+							type: 'updateSimpleNodeValue',
+							data: {
+								uuid: node.uuid,
+								nodeType: node.type,
+								key: 'varuuid',
+								value: ev.target.value,
+							},
+						});
+					}}
+				>
+					{' '}
+					<option value="">Choose!</option>
+					{getVarLabelNodes(editorState).map((n) => {
+						return (
+							<option key={n.uuid} value={n.uuid}>
+								{n.name}
+							</option>
+						);
+					})}
+				</select>
+			</>
+		);
+	} else if (node.type === ProgramNodeTypes.VAR_SET) {
+		return (
+			<>
+				Varable
+				<select
+					value={node.varuuid}
+					onChange={(ev) => {
+						ev.target.value;
+
+						editorDispatch({
+							type: 'updateSimpleNodeValue',
+							data: {
+								uuid: node.uuid,
+								nodeType: node.type,
+								key: 'varuuid',
+								value: ev.target.value,
+							},
+						});
+					}}
+				>
+					<option value="">Choose!</option>
+					{getVarLabelNodes(editorState).map((n) => {
+						return (
+							<option key={n.uuid} value={n.uuid}>
+								{n.name}
+							</option>
+						);
+					})}
+				</select>
+			</>
+		);
+	} else if (node.type === ProgramNodeTypes.IF_STATMENT) {
+		return (
+			<>
+				will evaluate this first if true will run children
+				{node.conditionNode === null ? (
+					<EmptyStamentBox type="placeConditionNode" parentUuid={node.uuid} />
+				) : (
+					<ProgramNodeUI node={node.conditionNode} />
+				)}
+			</>
+		);
+	}
+	
+	else if (node.type === ProgramNodeTypes.WHILE_STATMENT) {
+		return (
+			<>
+				will evaluate this first if true will run children then repat until it is false
+				{node.conditionNode === null ? (
+					<EmptyStamentBox type="placeConditionNode" parentUuid={node.uuid} />
+				) : (
+					<ProgramNodeUI node={node.conditionNode} />
+				)}
+			</>
+		);
+	} 
+	else {
+		return (
+			<>
+				No ui for {node.type}
+				{node.uuid}
 			</>
 		);
 	}
@@ -204,6 +445,10 @@ function EmptyStamentBox(
 				parentUuid: string;
 				siblingUuid: string;
 				location: 'above' | 'below';
+		  }
+		| {
+				type: 'placeConditionNode';
+				parentUuid: string;
 		  },
 ) {
 	const editorDispatch = useContext(EditorDispatchContext);
@@ -250,9 +495,10 @@ function EmptyStamentBox(
 								data: {
 									parentUuid,
 									nodeType: createData.nodeType,
+									isConditionNode: false,
 								},
 							});
-						} else {
+						} else if (props.type === 'placeChildRelative') {
 							editorDispatch({
 								type: 'addNodeNextToOtherNode',
 								data: {
@@ -260,6 +506,15 @@ function EmptyStamentBox(
 									nodeType: createData.nodeType,
 									siblingUuid: props.siblingUuid,
 									location: props.location,
+								},
+							});
+						} else if (props.type === 'placeConditionNode') {
+							editorDispatch({
+								type: 'addNode',
+								data: {
+									parentUuid,
+									nodeType: createData.nodeType,
+									isConditionNode: true,
 								},
 							});
 						}
@@ -284,9 +539,10 @@ function EmptyStamentBox(
 
 									selfUuid: moveData.selfUuid,
 									oldParentUuid: moveData.oldParentUuid,
+									isConditionNode: false,
 								},
 							});
-						} else {
+						} else if (props.type === 'placeChildRelative') {
 							editorDispatch({
 								type: 'moveNodeNextToOtherNode',
 								data: {
@@ -297,13 +553,28 @@ function EmptyStamentBox(
 									location: props.location,
 								},
 							});
+						} else if (props.type === 'placeConditionNode') {
+							editorDispatch({
+								type: 'moveNode',
+								data: {
+									nextParentUuid: parentUuid,
+
+									selfUuid: moveData.selfUuid,
+									oldParentUuid: moveData.oldParentUuid,
+									isConditionNode: false,
+								},
+							});
 						}
 					}
 				} catch (err) {
 					console.error(err);
 				}
 			}}
-		></div>
+		>
+			{props.type === 'placeChildRelative'
+				? 'Drop to make Sibling'
+				: 'Drop to make Child'}
+		</div>
 	);
 }
 
@@ -312,13 +583,21 @@ export type ProgramEditorReducerAction =
 	| AddNodeActionRelativeToSibilng
 	| DeleteNodeAction
 	| MoveNodeAction
-	| MoveNodeActionRelativeToSibilng;
+	| MoveNodeActionRelativeToSibilng
+	| UpdateSimpleNodeValueAction<ValueNode, 'value'>
+	| UpdateSimpleNodeValueAction<ValueNode, 'valueType'>
+	| UpdateSimpleNodeValueAction<VarGetNode, 'varuuid'>
+	| UpdateSimpleNodeValueAction<VarLabelNode, 'name'>
+	| UpdateSimpleNodeValueAction<InputNode, 'valueType'>
+	| UpdateSimpleNodeValueAction<OperatorNode, 'opertation'>
+	| UpdateSimpleNodeValueAction<VarSetNode, 'varuuid'>;
 
 export type AddNodeAction = {
 	type: 'addNode';
 	data: {
 		parentUuid: string;
 		nodeType: (typeof ProgramNodeTypes)[keyof typeof ProgramNodeTypes];
+		isConditionNode: boolean;
 	};
 };
 
@@ -346,6 +625,7 @@ export type MoveNodeAction = {
 		oldParentUuid: string;
 		selfUuid: string;
 		nextParentUuid: string;
+		isConditionNode: boolean;
 	};
 };
 
@@ -360,15 +640,72 @@ export type MoveNodeActionRelativeToSibilng = {
 	};
 };
 
+// type x<T extends NonNullable<ProgramNode>> = T[keyof T];
+
+export type UpdateSimpleNodeValueAction<
+	T extends NonNullable<ProgramNode>,
+	K extends keyof T,
+> = {
+	type: 'updateSimpleNodeValue';
+	data: {
+		key: K;
+		nodeType: T['type'];
+		value: T[K];
+		uuid: string;
+	};
+};
+
+// const s:ProgramNode={
+// 	uuid:'hsdfjjhsdf',
+// 	type:ProgramNodeTypes.INPUT,
+// 	//value:'',
+// 	valueType:'string',
+// 	children:[]
+// }
+
+// // const z:ProgramEditorReducerAction={
+// // 	type:'updateSimpleNodeValue',data:{
+// // 		uuid:'abc',
+// // 		nodeType:ProgramNodeTypes.INPUT,
+// // 		key:'valueType',
+// // 		value:'string'
+// // 	}
+// // }
+
+// function x(s:ValueNode,z:ProgramEditorReducerAction){
+
+// 	if(z.type==='updateSimpleNodeValue'){
+// 		if(s.type===z.data.nodeType){
+
+// 			if(z.data.key==='value'){
+// 				s[z.data.key]=z.data.value
+// 			}
+// 			else if(z.data.key==='valueType'){
+// 				s[z.data.key]=z.data.value
+// 			}
+
+// 	}
+
+// 	}
+
+// }
+
 export function programEditorReducer(
 	oldstate: ProgramNode,
 	action: ProgramEditorReducerAction,
 ): ProgramNode {
+	//todo dont do this
 	let state = structuredClone(oldstate);
 	if (action.type === 'addNode') {
 		const n = getNodeWithUUID(action.data.parentUuid, state);
 		if (n !== undefined) {
-			n.children.push(nodeFromNodeType(action.data.nodeType));
+			if(!action.data.isConditionNode){
+				n.children.push(nodeFromNodeType(action.data.nodeType));
+			}
+			else if(action.data.isConditionNode&&(n.type===ProgramNodeTypes.IF_STATMENT||n.type===ProgramNodeTypes.WHILE_STATMENT)){
+				n.conditionNode=nodeFromNodeType(action.data.nodeType)
+			}
+			
 		}
 	} else if (action.type === 'addNodeNextToOtherNode') {
 		const n = getNodeWithUUID(action.data.parentUuid, state);
@@ -409,11 +746,24 @@ export function programEditorReducer(
 		const nodeToMove = structuredClone(
 			getNodeWithUUID(action.data.selfUuid, state),
 		);
-		const parentNode = getNodeWithUUID(action.data.selfUuid, state);
+		const parentNode = getNodeWithUUID(action.data.nextParentUuid, state);
 
 		if (nodeToMove !== undefined && parentNode !== undefined) {
 			state = deleteNode(state, action.data.selfUuid);
-			parentNode.children.push(nodeToMove);
+			const parentNodeMod = getNodeWithUUID(action.data.nextParentUuid, state);
+			
+			if (parentNodeMod !== undefined) {
+				if(  (parentNodeMod.type===ProgramNodeTypes.IF_STATMENT || parentNodeMod.type===ProgramNodeTypes.WHILE_STATMENT)&&action.data.isConditionNode){
+					parentNodeMod.conditionNode=nodeToMove
+				}
+				else{
+					parentNodeMod.children.push(nodeToMove);
+				}
+				
+			}
+
+
+
 		}
 	} else if (action.type === 'moveNodeNextToOtherNode') {
 		console.log(action);
@@ -432,14 +782,87 @@ export function programEditorReducer(
 				action.data.location,
 			);
 		}
+	} else if (action.type === 'updateSimpleNodeValue') {
+		const nodeToEdit = getNodeWithUUID(action.data.uuid, state);
+
+		if (nodeToEdit !== undefined && nodeToEdit.type === action.data.nodeType) {
+			//theres probaly a better way to write this but typescript seems to like this way and thinks i could be lying when i dont write it this way
+			if (
+				action.data.nodeType === ProgramNodeTypes.VAR_LABEL &&
+				nodeToEdit.type === ProgramNodeTypes.VAR_LABEL
+			) {
+				nodeToEdit[action.data.key] = action.data.value;
+			} else if (
+				action.data.nodeType === ProgramNodeTypes.VAR_GET &&
+				nodeToEdit.type === ProgramNodeTypes.VAR_GET
+			) {
+				nodeToEdit[action.data.key] = action.data.value;
+			} else if (
+				action.data.nodeType === ProgramNodeTypes.VAR_SET &&
+				nodeToEdit.type === ProgramNodeTypes.VAR_SET
+			) {
+				nodeToEdit[action.data.key] = action.data.value;
+			} else if (
+				action.data.nodeType === ProgramNodeTypes.VALUE &&
+				nodeToEdit.type === ProgramNodeTypes.VALUE &&
+				action.data.key === 'value'
+			) {
+				nodeToEdit[action.data.key] = action.data.value;
+			} else if (
+				action.data.nodeType === ProgramNodeTypes.VALUE &&
+				nodeToEdit.type === ProgramNodeTypes.VALUE &&
+				action.data.key === 'valueType'
+			) {
+				nodeToEdit[action.data.key] = action.data.value;
+			} else if (
+				action.data.nodeType === ProgramNodeTypes.OPERATOR &&
+				nodeToEdit.type === ProgramNodeTypes.OPERATOR
+			) {
+				nodeToEdit[action.data.key] = action.data.value;
+			} else if (
+				action.data.nodeType === ProgramNodeTypes.INPUT &&
+				nodeToEdit.type === ProgramNodeTypes.INPUT
+			) {
+				nodeToEdit[action.data.key] = action.data.value;
+			} else {
+				console.error(
+					'updateSimpleNodeValue could not update did you miss a type?',
+					action,
+					nodeToEdit,
+				);
+			}
+		} else {
+			console.error(
+				'updateSimpleNodeValue failed bad node',
+				action,
+				nodeToEdit,
+			);
+		}
 	}
 
 	return state;
 }
 
-function deleteNode(state: ProgramNode, uuid: string) {
+function deleteNode(state: Readonly<ProgramNode>, uuid: string) {
 	if (state !== null) {
-		state.children = state.children.flatMap((child) => {
+		let nextState = structuredClone<NonNullable<ProgramNode>>(state);
+
+		if((nextState.type===ProgramNodeTypes.IF_STATMENT||nextState.type===ProgramNodeTypes.WHILE_STATMENT)&&nextState.conditionNode!==null){
+
+
+			
+			if(nextState.conditionNode.uuid===uuid){
+				nextState.conditionNode=null;
+			}
+			else{
+				nextState.conditionNode= deleteNode(nextState.conditionNode,uuid)
+			}
+
+			
+		}
+
+
+		nextState.children = state.children.flatMap((child) => {
 			if (child === null) {
 				return null;
 			}
@@ -449,6 +872,7 @@ function deleteNode(state: ProgramNode, uuid: string) {
 			}
 			return [];
 		});
+		return nextState;
 	}
 	return state;
 }
@@ -511,6 +935,30 @@ function getNodeWithUUID(
 	return undefined;
 }
 
+function getVarLabelNodes(node: ProgramNode): VarLabelNode[] {
+	const resultsArr: VarLabelNode[] = [];
+
+	if (node === null) {
+		return [];
+	}
+	if (node.type === ProgramNodeTypes.VAR_LABEL) {
+		resultsArr.push(node);
+	}
+
+	if (
+		node.type === ProgramNodeTypes.IF_STATMENT ||
+		node.type === ProgramNodeTypes.WHILE_STATMENT
+	) {
+		resultsArr.push(...getVarLabelNodes(node.conditionNode));
+	}
+
+	for (let c of node.children) {
+		resultsArr.push(...getVarLabelNodes(c));
+	}
+
+	return resultsArr;
+}
+
 function nodeFromNodeType(
 	type: (typeof ProgramNodeTypes)[keyof typeof ProgramNodeTypes],
 ): NonNullable<ProgramNode> {
@@ -522,8 +970,8 @@ function nodeFromNodeType(
 		return {
 			type,
 			uuid,
-			children: [],
 			valueType: 'number',
+			children: [],
 		};
 	} else if (type === ProgramNodeTypes.PRINT) {
 		return {
@@ -535,51 +983,51 @@ function nodeFromNodeType(
 		return {
 			type,
 			uuid,
-			children: [],
 			opertation: OperationTypes.PLUS,
+			children: [],
 		};
 	} else if (type === ProgramNodeTypes.IF_STATMENT) {
 		return {
 			type,
 			uuid,
-			children: [],
 			conditionNode: null,
+			children: [],
 		};
 	} else if (type === ProgramNodeTypes.WHILE_STATMENT) {
 		return {
 			type,
 			uuid,
-			children: [],
 			conditionNode: null,
+			children: [],
 		};
 	} else if (type === ProgramNodeTypes.VALUE) {
 		return {
 			type,
 			uuid,
-			children: [],
 			value: '0',
 			valueType: 'number',
+			children: [],
 		};
 	} else if (type === ProgramNodeTypes.VAR_GET) {
 		return {
 			type,
 			uuid,
-			children: [],
 			varuuid: '',
+			children: [],
 		};
 	} else if (type === ProgramNodeTypes.VAR_SET) {
 		return {
 			type,
 			uuid,
+			varuuid: '',
 			children: [],
-			varuuids: [''],
 		};
 	} else {
 		return {
 			type,
 			uuid,
-			children: [],
 			name: '',
+			children: [],
 		};
 	}
 }
