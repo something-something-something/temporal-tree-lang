@@ -9,7 +9,9 @@
 		"start": "next start",
 		"lint": "next lint",
 		"fmt:check": "prettier . --check",
-		"fmt": "prettier . --write"
+		"fmt": "prettier . --write",
+		"worker": "ts-node --project ./temporalWorker/tsconfig-worker.json  ./temporalWorker/worker.ts",
+		"nv": "pnpm exec node --version"
 	},
 	"packageManager": "pnpm@8.6.9",
 	"keywords": [],
@@ -25,7 +27,8 @@
 		"next": "^13.4.12",
 		"react": "^18.2.0",
 		"react-dom": "^18.2.0",
-		"use-immer": "^0.9.0"
+		"use-immer": "^0.9.0",
+		"zod": "^3.21.4"
 	},
 	"devDependencies": {
 		"@types/node": "20.4.4",

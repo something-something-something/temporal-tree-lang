@@ -25,6 +25,8 @@ import {
 import editorStyles from './editor.module.css';
 import { useImmerReducer } from 'use-immer';
 import DisableSSR from '../../_clientComponts/DisableSSR';
+import { startWorkflow } from '../_actions/startWorkflow';
+import Link from 'next/link';
 
 const EditorDispatchContext = createContext<
 	Dispatch<ProgramEditorReducerAction>
@@ -39,6 +41,8 @@ export function Editor() {
 		children: [],
 	});
 
+	const [workflowID, setWorkflowID] = useState<string | null>(null);
+
 	const sideBarItems = Object.entries(ProgramNodeTypes).flatMap(([k, v]) => {
 		if (v === ProgramNodeTypes.ROOT) {
 			return [];
@@ -51,6 +55,20 @@ export function Editor() {
 			<EditorStateContext.Provider value={editorState}>
 				<div className={editorStyles.editor}>
 					<div className={editorStyles.program}>
+						<button
+							type="button"
+							onClick={async () => {
+								if (editorState !== null) {
+									setWorkflowID(await startWorkflow(editorState));
+								}
+							}}
+						>
+							Start workflow
+						</button>
+						{workflowID !== null && (
+							<Link href={`/run/${workflowID}`}>{workflowID}</Link>
+						)}
+
 						<ProgramNodeUI node={editorState} />
 						{/* <div style={{ width: '10000px', height: '10000px' }}>blah</div>
 				program */}
@@ -395,12 +413,11 @@ function NodeConfigControls({ node }: { node: ProgramNode }) {
 				)}
 			</>
 		);
-	}
-	
-	else if (node.type === ProgramNodeTypes.WHILE_STATMENT) {
+	} else if (node.type === ProgramNodeTypes.WHILE_STATMENT) {
 		return (
 			<>
-				will evaluate this first if true will run children then repat until it is false
+				will evaluate this first if true will run children then repat until it
+				is false
 				{node.conditionNode === null ? (
 					<EmptyStamentBox type="placeConditionNode" parentUuid={node.uuid} />
 				) : (
@@ -408,8 +425,7 @@ function NodeConfigControls({ node }: { node: ProgramNode }) {
 				)}
 			</>
 		);
-	} 
-	else {
+	} else {
 		return (
 			<>
 				No ui for {node.type}
@@ -573,7 +589,9 @@ function EmptyStamentBox(
 		>
 			{props.type === 'placeChildRelative'
 				? 'Drop to make Sibling'
-				: 'Drop to make Child'}
+				: props.type === 'placeOnlyChild'
+				? 'Drop to make Child'
+				: 'Drop for Condition'}
 		</div>
 	);
 }
@@ -699,13 +717,15 @@ export function programEditorReducer(
 	if (action.type === 'addNode') {
 		const n = getNodeWithUUID(action.data.parentUuid, state);
 		if (n !== undefined) {
-			if(!action.data.isConditionNode){
+			if (!action.data.isConditionNode) {
 				n.children.push(nodeFromNodeType(action.data.nodeType));
+			} else if (
+				action.data.isConditionNode &&
+				(n.type === ProgramNodeTypes.IF_STATMENT ||
+					n.type === ProgramNodeTypes.WHILE_STATMENT)
+			) {
+				n.conditionNode = nodeFromNodeType(action.data.nodeType);
 			}
-			else if(action.data.isConditionNode&&(n.type===ProgramNodeTypes.IF_STATMENT||n.type===ProgramNodeTypes.WHILE_STATMENT)){
-				n.conditionNode=nodeFromNodeType(action.data.nodeType)
-			}
-			
 		}
 	} else if (action.type === 'addNodeNextToOtherNode') {
 		const n = getNodeWithUUID(action.data.parentUuid, state);
@@ -751,19 +771,18 @@ export function programEditorReducer(
 		if (nodeToMove !== undefined && parentNode !== undefined) {
 			state = deleteNode(state, action.data.selfUuid);
 			const parentNodeMod = getNodeWithUUID(action.data.nextParentUuid, state);
-			
+
 			if (parentNodeMod !== undefined) {
-				if(  (parentNodeMod.type===ProgramNodeTypes.IF_STATMENT || parentNodeMod.type===ProgramNodeTypes.WHILE_STATMENT)&&action.data.isConditionNode){
-					parentNodeMod.conditionNode=nodeToMove
-				}
-				else{
+				if (
+					(parentNodeMod.type === ProgramNodeTypes.IF_STATMENT ||
+						parentNodeMod.type === ProgramNodeTypes.WHILE_STATMENT) &&
+					action.data.isConditionNode
+				) {
+					parentNodeMod.conditionNode = nodeToMove;
+				} else {
 					parentNodeMod.children.push(nodeToMove);
 				}
-				
 			}
-
-
-
 		}
 	} else if (action.type === 'moveNodeNextToOtherNode') {
 		console.log(action);
@@ -847,20 +866,17 @@ function deleteNode(state: Readonly<ProgramNode>, uuid: string) {
 	if (state !== null) {
 		let nextState = structuredClone<NonNullable<ProgramNode>>(state);
 
-		if((nextState.type===ProgramNodeTypes.IF_STATMENT||nextState.type===ProgramNodeTypes.WHILE_STATMENT)&&nextState.conditionNode!==null){
-
-
-			
-			if(nextState.conditionNode.uuid===uuid){
-				nextState.conditionNode=null;
+		if (
+			(nextState.type === ProgramNodeTypes.IF_STATMENT ||
+				nextState.type === ProgramNodeTypes.WHILE_STATMENT) &&
+			nextState.conditionNode !== null
+		) {
+			if (nextState.conditionNode.uuid === uuid) {
+				nextState.conditionNode = null;
+			} else {
+				nextState.conditionNode = deleteNode(nextState.conditionNode, uuid);
 			}
-			else{
-				nextState.conditionNode= deleteNode(nextState.conditionNode,uuid)
-			}
-
-			
 		}
-
 
 		nextState.children = state.children.flatMap((child) => {
 			if (child === null) {

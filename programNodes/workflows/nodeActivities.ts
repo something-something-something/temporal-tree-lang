@@ -3,14 +3,19 @@ import { ProgramStateType } from '../execClasses/types';
 import { PrintNode, ProgramNode, ProgramNodeTypes, RootNode } from '../types';
 import * as ProgramNodeRunRunners from '../execClasses/BaseNodeRun';
 import { ProgramNodeRun } from '../execClasses/BaseNodeRun';
+import {
+	getTemporalClient,
+	startNodeWorkflow,
+} from '../../utilTemporal/client';
+import { randomUUID } from 'crypto';
 
-export function run(
-	node: NonNullable<ProgramNode>,
-	state: ProgramStateType,
-	rootWorkflowId: string | null,
-) {
-	return programNodeRunFactory(node).run(state, rootWorkflowId);
-}
+// export function run(
+// 	node: NonNullable<ProgramNode>,
+// 	state: ProgramStateType,
+// 	rootWorkflowId: string | null,
+// ) {
+// 	return programNodeRunFactory(node).run(state, rootWorkflowId);
+// }
 
 // export function arbAct<
 // NP extends NonNullable<ProgramNode> infer R,
@@ -58,12 +63,31 @@ type ValidKeyOf<X, Y> = {
 
 //type ValidInUnion<>
 
+export async function activityStartWorkflow(
+	node: NonNullable<ProgramNode>,
+	state: ProgramStateType,
+	rootWorkflowId: string | null,
+) {
+	const handle = await startNodeWorkflow(
+		getTemporalClient(),
+		node,
+		state,
+		rootWorkflowId,
+	);
+	return handle.workflowId;
+}
+
+export async function activityGetWorkflowResultByWorkflowId(
+	workflowId: string,
+): Promise<ProgramStateType> {
+	return getTemporalClient().workflow.result(workflowId);
+}
+
 export function activityRunArbitrayProgramNodeRunMethodNotTypeChecked<
 	IMethod extends (...args: any) => any,
-	NodeType = never,
-	IA extends NodeType = NodeType,
+	NodeType = ProgramNode,
 >(
-	node: IA,
+	node: ProgramNode,
 	methodName: string,
 	...args: Parameters<IMethod>
 ): ReturnType<IMethod> {
@@ -71,9 +95,56 @@ export function activityRunArbitrayProgramNodeRunMethodNotTypeChecked<
 	return programNodeRunFactory(node)[methodName](...args);
 }
 
-// const x=activityRunArbitrayProgramNodeRunMethodNotTypeChecked<InstanceType<typeof ProgramNodeRunRunners.PrintNodeRun>['run'],PrintNode >({ type:ProgramNodeTypes.PRINT, uuid:'', children:[]},'run',{
+export type ActivityUtilsObject = {
+	randomUUID: typeof randomUUID;
+	getTemporalClient: typeof getTemporalClient;
+	startNodeWorkflow: typeof startNodeWorkflow;
+};
 
-// value:0,
-// variables:{}
+type OmitFirstArg<X extends (a: any) => any, FirstArg> = X extends (
+	utilsObject: FirstArg,
+	...restOf: infer RestOfParams
+) => any
+	? RestOfParams
+	: never;
 
-// },null)
+export function activityRunArbitrayProgramNodeRunMethodWithUtilsObjectNotTypeChecked<
+	IMethod extends (...args: any) => any,
+
+	// x extends Parameters<IMethod> extends (
+	// 	utilsObject: ActivityUtilsObject,
+	// 	...restOf: infer RestOfParams
+	// ) => infer ReturnType
+	// 	? RestOfParams
+	// 	: never,
+>(
+	node: ProgramNode,
+	methodName: string,
+	...args: OmitFirstArg<IMethod, ActivityUtilsObject>
+): ReturnType<IMethod> {
+	const utilObj: ActivityUtilsObject = {
+		getTemporalClient,
+		randomUUID,
+		startNodeWorkflow,
+	};
+
+	//@ts-expect-error
+	return programNodeRunFactory(node)[methodName](utilObj, ...args);
+}
+
+// const x = activityRunArbitrayProgramNodeRunMethodNotTypeChecked<
+// 	InstanceType<
+// 		typeof ProgramNodeRunRunners.PrintNodeRun
+// 	>['actMethodExecNothing'],
+// 	PrintNode
+// >({ type: ProgramNodeTypes.PRINT, uuid: '', children: [] }, 'run',
+// {
+// 	values: [],
+// 	variables: {},
+// });
+// type R = Parameters<typeof fetch> extends (
+// 	context: Context,
+// 	...restOf: infer RestOfParams
+// ) => infer ReturnType
+// 	? RestOfParams
+// 	: never;
