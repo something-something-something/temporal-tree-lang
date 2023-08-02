@@ -16,6 +16,8 @@ run frontend
 run worker
 `pnpm run worker`
 
+Editor ui [http://localhost:3000/editor](http://localhost:3000/editor)
+
 requires
 
 - `temporal` [cli](https://docs.temporal.io/cli/)
