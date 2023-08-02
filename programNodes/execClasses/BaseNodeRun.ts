@@ -20,13 +20,12 @@ import {
 	customDataSignal,
 	displayMessageSignal,
 } from '../workflows/nodeWorkflow';
-import { convertToNum, convertToStr } from './convertToNum';
+import { convertToNum, convertToStr, isValueTrue } from './convertToNum';
 import { ProgramStateType, ExecutionArg, StateOfVarables } from './types';
 import { condition, setHandler } from '@temporalio/workflow';
 import { z } from 'zod';
 
-//structuredClone should work
-
+//structuredClone should work but i got weird errors probaly tsconfig issue
 function fakeStructuredClone<X>(arg: X): X {
 	return JSON.parse(JSON.stringify(arg));
 }
@@ -317,6 +316,16 @@ export class OperatorNodeRun extends BaseNodeRun<OperatorNode> {
 						} else {
 							return pv - convertToNum(cv);
 						}
+					} else if (this.node.opertation === OperationTypes.MULT) {
+						return convertToNum(pv) * convertToNum(cv);
+					} else if (this.node.opertation === OperationTypes.DIV) {
+						return convertToNum(pv) / convertToNum(cv);
+					} else if (this.node.opertation === OperationTypes.NOT_EQUALS) {
+						return pv !== cv ? 1 : 0;
+					} else if (this.node.opertation === OperationTypes.OR) {
+						return isValueTrue(pv) > 0 || isValueTrue(cv) > 0 ? 1 : 0;
+					} else if (this.node.opertation === OperationTypes.AND) {
+						return isValueTrue(pv) > 0 && isValueTrue(cv) > 0 ? 1 : 0;
 					} else if (this.node.opertation === OperationTypes.GREATER_THAN) {
 						return pv > cv ? 1 : 0;
 					} else if (
@@ -365,8 +374,13 @@ export class IfNodeRun extends BaseNodeRun<IfStatmentNode> {
 				condwfid,
 			);
 
-			if (condResult.value !== 0) {
+			if (isValueTrue(condResult.value) > 0) {
 				return super.run(condResult, rootWorkflowId, activities, workflowArgs);
+			} else {
+				return {
+					value: 0,
+					variables: condResult.variables,
+				};
 			}
 		}
 
@@ -402,7 +416,7 @@ export class WhileNodeRun extends BaseNodeRun<WhileStatmentNode> {
 				const condResult =
 					await activities.activityGetWorkflowResultByWorkflowId(condwfid);
 				programState = condResult;
-				dorun = convertToNum(condResult.value) > 0;
+				dorun = isValueTrue(condResult.value) > 0;
 				if (dorun) {
 					const result = await super.run(
 						condResult,

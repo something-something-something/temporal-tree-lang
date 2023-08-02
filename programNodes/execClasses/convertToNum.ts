@@ -18,3 +18,7 @@ export function convertToStr(v: string | number) {
 		return v.toString(10);
 	}
 }
+
+export function isValueTrue(v: string | number): 0 | 1 {
+	return convertToNum(v) > 0 ? 1 : 0;
+}

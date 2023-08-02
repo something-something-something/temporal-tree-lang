@@ -27,11 +27,16 @@ export const ProgramNodeTypes = {
 export const OperationTypes = {
 	PLUS: '+',
 	MINUS: '-',
+	MULT: '*',
+	DIV: '/',
 	EQUAL: '=',
+	NOT_EQUALS: '!=',
 	GREATER_THAN: '>',
 	LESS_THAN: '<',
 	GREATER_THAN_OR_EQUAL: '>=',
 	LESS_THAN_OR_EQUAL: '<=',
+	OR: '||',
+	AND: '&&',
 } as const;
 
 export interface BaseNode {

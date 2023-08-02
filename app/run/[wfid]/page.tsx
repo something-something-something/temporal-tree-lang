@@ -12,7 +12,7 @@ export default async function RunWorkflowPage({
 
 	const data = await wfHandle.query(getMessageData);
 
-	const e = await wfHandle.fetchHistory();
+	//const e = await wfHandle.fetchHistory();
 
 	//return <>{JSON.stringify(data)}</>;
 
@@ -27,14 +27,14 @@ export default async function RunWorkflowPage({
 				if (!v.message.data.show) {
 					return [];
 				} else {
-					return <SubmitInput message={v} />;
+					return <SubmitInput key={k} message={v} />;
 				}
 			}
 		});
 
 	return (
 		<>
-			{display}
+			{display.length > 0 ? display : <>No output</>}
 			<AutoRefresh />
 		</>
 	);

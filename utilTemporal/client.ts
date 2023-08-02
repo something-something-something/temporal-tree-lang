@@ -20,7 +20,11 @@ export async function startNodeWorkflow(
 	return await client.workflow.start(nodeWorkflow, {
 		workflowId: workflowId,
 		taskQueue: TEMPORAL_TASK_QUEUE,
-
+		searchAttributes: {
+			NodeType: [node.type],
+			NodeUUID: [node.uuid],
+			RootNodeUUID: [rootWorkflowId ?? workflowId],
+		},
 		args: [
 			{
 				workflowId,

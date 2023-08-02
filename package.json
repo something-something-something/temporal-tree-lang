@@ -11,7 +11,8 @@
 		"fmt:check": "prettier . --check",
 		"fmt": "prettier . --write",
 		"worker": "ts-node --project ./temporalWorker/tsconfig-worker.json  ./temporalWorker/worker.ts",
-		"nv": "pnpm exec node --version"
+		"nv": "pnpm exec node --version",
+		"install-clean-deps": "rm -rf node_modules && pnpm install --frozen-lockfile"
 	},
 	"packageManager": "pnpm@8.6.9",
 	"keywords": [],

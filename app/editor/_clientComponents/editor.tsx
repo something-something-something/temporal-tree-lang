@@ -40,6 +40,7 @@ export function Editor() {
 		uuid: crypto.randomUUID(),
 		children: [],
 	});
+	const [showDirectInput, setShowDirectInput] = useState(false);
 
 	const [workflowID, setWorkflowID] = useState<string | null>(null);
 
@@ -75,6 +76,21 @@ export function Editor() {
 						<DisableSSR>
 							<pre>{JSON.stringify(editorState, null, '\t')}</pre>
 						</DisableSSR>
+						<button
+							onClick={() => {
+								setShowDirectInput((curr) => {
+									return !curr;
+								});
+							}}
+						>
+							DirectInput
+						</button>
+						{showDirectInput && (
+							<>
+								<br />
+								<DirectInput />
+							</>
+						)}
 					</div>
 					<div>{sideBarItems}</div>
 				</div>
@@ -118,6 +134,36 @@ function SidebarItem({
 		>
 			{nodeType}
 		</div>
+	);
+}
+
+function DirectInput() {
+	const [text, setText] = useState('');
+	const editorDispatch = useContext(EditorDispatchContext);
+
+	return (
+		<>
+			<textarea
+				value={text}
+				onChange={(ev) => {
+					setText(ev.target.value);
+				}}
+			/>
+			<br />
+			<button
+				type="button"
+				onClick={() => {
+					editorDispatch({
+						type: 'directInput',
+						data: {
+							node: JSON.parse(text),
+						},
+					});
+				}}
+			>
+				Submit Input (You may break things!)
+			</button>
+		</>
 	);
 }
 
@@ -577,7 +623,7 @@ function EmptyStamentBox(
 
 									selfUuid: moveData.selfUuid,
 									oldParentUuid: moveData.oldParentUuid,
-									isConditionNode: false,
+									isConditionNode: true,
 								},
 							});
 						}
@@ -597,6 +643,7 @@ function EmptyStamentBox(
 }
 
 export type ProgramEditorReducerAction =
+	| DirectInputAction
 	| AddNodeAction
 	| AddNodeActionRelativeToSibilng
 	| DeleteNodeAction
@@ -609,6 +656,13 @@ export type ProgramEditorReducerAction =
 	| UpdateSimpleNodeValueAction<InputNode, 'valueType'>
 	| UpdateSimpleNodeValueAction<OperatorNode, 'opertation'>
 	| UpdateSimpleNodeValueAction<VarSetNode, 'varuuid'>;
+
+export type DirectInputAction = {
+	type: 'directInput';
+	data: {
+		node: NonNullable<ProgramNode>;
+	};
+};
 
 export type AddNodeAction = {
 	type: 'addNode';
@@ -769,18 +823,26 @@ export function programEditorReducer(
 		const parentNode = getNodeWithUUID(action.data.nextParentUuid, state);
 
 		if (nodeToMove !== undefined && parentNode !== undefined) {
-			state = deleteNode(state, action.data.selfUuid);
-			const parentNodeMod = getNodeWithUUID(action.data.nextParentUuid, state);
+			const tempstate = deleteNode(state, action.data.selfUuid);
+			if (
+				getNodeWithUUID(action.data.nextParentUuid, tempstate) !== undefined
+			) {
+				state = tempstate;
+				const parentNodeMod = getNodeWithUUID(
+					action.data.nextParentUuid,
+					state,
+				);
 
-			if (parentNodeMod !== undefined) {
-				if (
-					(parentNodeMod.type === ProgramNodeTypes.IF_STATMENT ||
-						parentNodeMod.type === ProgramNodeTypes.WHILE_STATMENT) &&
-					action.data.isConditionNode
-				) {
-					parentNodeMod.conditionNode = nodeToMove;
-				} else {
-					parentNodeMod.children.push(nodeToMove);
+				if (parentNodeMod !== undefined) {
+					if (
+						(parentNodeMod.type === ProgramNodeTypes.IF_STATMENT ||
+							parentNodeMod.type === ProgramNodeTypes.WHILE_STATMENT) &&
+						action.data.isConditionNode
+					) {
+						parentNodeMod.conditionNode = nodeToMove;
+					} else {
+						parentNodeMod.children.push(nodeToMove);
+					}
 				}
 			}
 		}
@@ -792,14 +854,17 @@ export function programEditorReducer(
 		);
 
 		if (nodeToMove !== undefined) {
-			state = deleteNode(state, action.data.selfUuid);
+			const tempstate = deleteNode(state, action.data.selfUuid);
+			if (getNodeWithUUID(action.data.siblingUuid, tempstate) !== undefined) {
+				state = tempstate;
 
-			addNodeNextTo(
-				state,
-				action.data.siblingUuid,
-				nodeToMove,
-				action.data.location,
-			);
+				addNodeNextTo(
+					state,
+					action.data.siblingUuid,
+					nodeToMove,
+					action.data.location,
+				);
+			}
 		}
 	} else if (action.type === 'updateSimpleNodeValue') {
 		const nodeToEdit = getNodeWithUUID(action.data.uuid, state);
@@ -857,6 +922,8 @@ export function programEditorReducer(
 				nodeToEdit,
 			);
 		}
+	} else if (action.type === 'directInput') {
+		state = action.data.node;
 	}
 
 	return state;
